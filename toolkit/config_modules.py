@@ -559,6 +559,25 @@ class ModelConfig:
         self._original_refiner_name_or_path = self.refiner_name_or_path
         self.refiner_start_at = kwargs.get('refiner_start_at', 0.5)
         self.lora_path = kwargs.get('lora_path', None)
+
+        # Support for multiple LoRAs
+        self.lora_paths: Optional[List[Dict]] = kwargs.get('lora_paths', None)
+        # If lora_paths is provided, convert old lora_path to new format for backward compatibility
+        if self.lora_path is not None and self.lora_paths is None:
+            self.lora_paths = [{'path': self.lora_path, 'weight': 1.0}]
+        elif self.lora_paths is not None and self.lora_path is None:
+            # Validate lora_paths structure
+            for idx, lora_config in enumerate(self.lora_paths):
+                if not isinstance(lora_config, dict):
+                    raise ValueError(f"lora_paths[{idx}] must be a dict with 'path' and 'weight' keys")
+                if 'path' not in lora_config:
+                    raise ValueError(f"lora_paths[{idx}] must have a 'path' key")
+                if 'weight' not in lora_config:
+                    lora_config['weight'] = 1.0  # default weight
+        # Ensure lora_path is None if lora_paths is used to avoid confusion
+        if self.lora_paths is not None:
+            self.lora_path = None
+
         # mainly for decompression loras for distilled models
         self.assistant_lora_path = kwargs.get('assistant_lora_path', None)
         self.inference_lora_path = kwargs.get('inference_lora_path', None)

@@ -1,0 +1,40 @@
+job: generate
+config:
+  name: generate_multiple_loras_flux
+  process:
+    - type: to_folder
+      output_folder: output/generated_images_multi_lora_flux
+      device: cuda:0
+
+      generate:
+        sampler: flowmatch
+        width: 1024
+        height: 1280
+        guidance_scale: 3
+        sample_steps: 30
+        seed: 99
+        walk_seed: false
+        num_repeats: 1
+        ext: png
+
+        prompts:
+          - "A futuristic city at sunset, cyberpunk style, neon lights, flying cars"
+          - "A serene forest with a hidden waterfall, magical, fantasy art"
+
+      model:
+        name_or_path: black-forest-labs/FLUX.1-dev
+        is_flux: true
+        quantize: true
+        dtype: float16
+        # Now supports multiple LoRAs
+        lora_paths:
+          - path: s3://sh9zztnhd4/lora-dashboard/results/Trening_1_1/lora/Trening 1.0.safetensors
+            weight: 0.8
+          - path: /path/to/your/second_lora.safetensors # Replace with your actual LoRA path
+            weight: 0.5
+          - path: /path/to/your/third_lora.safetensors # Replace with your actual LoRA path
+            weight: 1.0
+        # lora_path and lora_weight are now deprecated if lora_paths is used
+        # lora_path: s3://sh9zztnhd4/lora-dashboard/results/Trening_1_1/lora/Trening 1.0.safetensors
+        # lora_weight: 1
+
