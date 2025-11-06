@@ -6,17 +6,20 @@ class ToolkitProgressBar(tqdm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.paused = False
-        self.last_time = self._time()
+        # Fix: Use time.perf_counter() instead of deprecated tqdm._time()
+        self.last_time = time.perf_counter()
 
     def pause(self):
         if not self.paused:
             self.paused = True
-            self.last_time = self._time()
+            # Fix: Use time.perf_counter() instead of deprecated tqdm._time()
+            self.last_time = time.perf_counter()
 
     def unpause(self):
         if self.paused:
             self.paused = False
-            cur_t = self._time()
+            # Fix: Use time.perf_counter() instead of deprecated tqdm._time()
+            cur_t = time.perf_counter()
             self.start_t += cur_t - self.last_time
             self.last_print_t = cur_t
 
