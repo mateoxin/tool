@@ -289,6 +289,15 @@ class ToolkitModuleMixin:
 
         if isinstance(x, QTensor):
             x = x.dequantize()
+        
+        # 🔧 FIX: Ensure LoRA weights are on same device as input (for split_model_over_gpus)
+        target_device = x.device
+        if self.lora_down.weight.device != target_device:
+            self.lora_down = self.lora_down.to(target_device)
+            self.lora_up = self.lora_up.to(target_device)
+            if hasattr(self, 'scalar'):
+                self.scalar = self.scalar.to(target_device)
+        
         # always cast to float32
         lora_input = x.to(self.lora_down.weight.dtype)
         lora_output = self._call_forward(lora_input)
