@@ -338,22 +338,25 @@ class ChromaModel(BaseModel):
             # img_ids = repeat(img_ids, "h w c -> b (h w) c",
             #                  b=bs).to(self.device_torch)
 
+            # Handle tuple text_embeds (get first element if tuple)
+            text_embeds_for_shape = text_embeddings.text_embeds[0] if isinstance(text_embeddings.text_embeds, (list, tuple)) else text_embeddings.text_embeds
             txt_ids = torch.zeros(
-                bs, text_embeddings.text_embeds.shape[1], 3).to(self.device_torch)
+                bs, text_embeds_for_shape.shape[1], 3).to(self.device_torch)
 
         guidance = torch.full([1], 0, device=self.device_torch, dtype=torch.float32)
         guidance = guidance.expand(latent_model_input_packed.shape[0])
 
         cast_dtype = self.unet.dtype
 
+        # Safely move embeddings to device (handles both tensor and tuple cases)
+        safe_text_embeds = self._safe_move_prompt_embeds(text_embeddings.text_embeds, self.device_torch, cast_dtype)
+        
         noise_pred = self.unet(
             img=latent_model_input_packed.to(
                 self.device_torch, cast_dtype
             ),
             img_ids=img_ids,
-            txt=text_embeddings.text_embeds.to(
-                self.device_torch, cast_dtype
-            ),
+            txt=safe_text_embeds,
             txt_ids=txt_ids,
             txt_mask=text_embeddings.attention_mask.to(
                 self.device_torch, cast_dtype
