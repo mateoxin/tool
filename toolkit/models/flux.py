@@ -99,6 +99,7 @@ def split_gpu_double_block_forward(
 def split_gpu_single_block_forward(
     self,
     hidden_states: torch.FloatTensor,
+    encoder_hidden_states: Optional[torch.FloatTensor],
     temb: torch.FloatTensor,
     image_rotary_emb=None,
     joint_attention_kwargs=None,
@@ -106,13 +107,22 @@ def split_gpu_single_block_forward(
 ):
     if hidden_states.device != self._split_device:
         hidden_states = hidden_states.to(device=self._split_device)
+    if encoder_hidden_states is not None and encoder_hidden_states.device != self._split_device:
+        encoder_hidden_states = encoder_hidden_states.to(device=self._split_device)
     if temb.device != self._split_device:
         temb = temb.to(device=self._split_device)
     if image_rotary_emb is not None and image_rotary_emb[0].device != self._split_device:
         # is a tuple of tensors
         image_rotary_emb = tuple([t.to(self._split_device) for t in image_rotary_emb])
-    
-    hidden_state_out = self._pre_gpu_split_forward(hidden_states, temb, image_rotary_emb, joint_attention_kwargs, **kwargs)
+
+    hidden_state_out = self._pre_gpu_split_forward(
+        hidden_states,
+        encoder_hidden_states,
+        temb,
+        image_rotary_emb,
+        joint_attention_kwargs,
+        **kwargs,
+    )
     if hasattr(self, "_split_output_device"):
         return hidden_state_out.to(self._split_output_device)
     return hidden_state_out
