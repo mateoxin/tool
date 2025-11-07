@@ -280,8 +280,10 @@ class FluxKontextModel(BaseModel):
                 img_ids = torch.cat([img_ids, ctrl_ids], dim=1)
                 
 
+            # Handle tuple text_embeds (get first element if tuple)
+            text_embeds_for_shape = text_embeddings.text_embeds[0] if isinstance(text_embeddings.text_embeds, (list, tuple)) else text_embeddings.text_embeds
             txt_ids = torch.zeros(
-                bs, text_embeddings.text_embeds.shape[1], 3).to(self.device_torch)
+                bs, text_embeds_for_shape.shape[1], 3).to(self.device_torch)
 
             # # handle guidance
             if self.unet_unwrapped.config.guidance_embeds:
@@ -315,14 +317,16 @@ class FluxKontextModel(BaseModel):
             )
             latent_size = latent.shape[1]
 
+        # Safely move embeddings to device (handles both tensor and tuple cases)
+        safe_text_embeds = self._safe_move_prompt_embeds(text_embeddings.text_embeds, self.device_torch, cast_dtype)
+        safe_pooled_embeds = self._safe_move_prompt_embeds(text_embeddings.pooled_embeds, self.device_torch, cast_dtype)
+        
         noise_pred = self.unet(
             hidden_states=latent_model_input_packed.to(
                 self.device_torch, cast_dtype),
             timestep=timestep / 1000,
-            encoder_hidden_states=text_embeddings.text_embeds.to(
-                self.device_torch, cast_dtype),
-            pooled_projections=text_embeddings.pooled_embeds.to(
-                self.device_torch, cast_dtype),
+            encoder_hidden_states=safe_text_embeds,
+            pooled_projections=safe_pooled_embeds,
             txt_ids=txt_ids,
             img_ids=img_ids,
             guidance=guidance,

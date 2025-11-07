@@ -182,6 +182,22 @@ class BaseModel:
         # set true for models that encode control image into text embeddings
         self.encode_control_in_text_embeddings = False
 
+    def _safe_move_prompt_embeds(self, embeds, device, dtype):
+        """
+        Safely move prompt embeddings to device/dtype, handling both tensor and tuple cases.
+        This is needed because encoder_hidden_states can be a tuple in some FLUX configurations.
+        """
+        if embeds is None:
+            return None
+        
+        if isinstance(embeds, (list, tuple)):
+            return tuple(
+                t.to(device, dtype) if hasattr(t, 'to') else t
+                for t in embeds
+            )
+        else:
+            return embeds.to(device, dtype)
+
     # properties for old arch for backwards compatibility
     @property
     def unet(self):
