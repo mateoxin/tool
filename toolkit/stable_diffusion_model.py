@@ -1917,9 +1917,11 @@ class StableDiffusion:
         do_classifier_free_guidance = True
 
         # check if batch size of embeddings matches batch size of latents
-        if latents.shape[0] == text_embeddings.text_embeds.shape[0]:
+        # Handle tuple text_embeds (get first element if tuple for shape check)
+        text_embeds_for_check = text_embeddings.text_embeds[0] if isinstance(text_embeddings.text_embeds, (list, tuple)) else text_embeddings.text_embeds
+        if latents.shape[0] == text_embeds_for_check.shape[0]:
             do_classifier_free_guidance = False
-        elif latents.shape[0] * 2 != text_embeddings.text_embeds.shape[0]:
+        elif latents.shape[0] * 2 != text_embeds_for_check.shape[0]:
             raise ValueError("Batch size of latents must be the same or half the batch size of text embeddings")
         latents = latents.to(self.device_torch)
         text_embeddings = text_embeddings.to(self.device_torch)
@@ -1941,17 +1943,17 @@ class StableDiffusion:
         if 'down_intrablock_additional_residuals' in kwargs:
             # go through each item and concat if doing cfg and it doesnt have the same shape
             for idx, item in enumerate(kwargs['down_intrablock_additional_residuals']):
-                if do_classifier_free_guidance and item.shape[0] != text_embeddings.text_embeds.shape[0]:
+                if do_classifier_free_guidance and item.shape[0] != text_embeds_for_check.shape[0]:
                     kwargs['down_intrablock_additional_residuals'][idx] = torch.cat([item] * 2, dim=0)
 
         # handle controlnet
         if 'down_block_additional_residuals' in kwargs and 'mid_block_additional_residual' in kwargs:
             # go through each item and concat if doing cfg and it doesnt have the same shape
             for idx, item in enumerate(kwargs['down_block_additional_residuals']):
-                if do_classifier_free_guidance and item.shape[0] != text_embeddings.text_embeds.shape[0]:
+                if do_classifier_free_guidance and item.shape[0] != text_embeds_for_check.shape[0]:
                     kwargs['down_block_additional_residuals'][idx] = torch.cat([item] * 2, dim=0)
             for idx, item in enumerate(kwargs['mid_block_additional_residual']):
-                if do_classifier_free_guidance and item.shape[0] != text_embeddings.text_embeds.shape[0]:
+                if do_classifier_free_guidance and item.shape[0] != text_embeds_for_check.shape[0]:
                     kwargs['mid_block_additional_residual'][idx] = torch.cat([item] * 2, dim=0)
 
         def scale_model_input(model_input, timestep_tensor):
@@ -2124,8 +2126,10 @@ class StableDiffusion:
                         self.vae_scale_factor == 16 and self.unet_unwrapped.config.sample_size == 64):
                     resolution = torch.tensor([height, width]).repeat(batch_size, 1)
                     aspect_ratio = torch.tensor([float(height / width)]).repeat(batch_size, 1)
-                    resolution = resolution.to(dtype=text_embeddings.text_embeds.dtype, device=self.device_torch)
-                    aspect_ratio = aspect_ratio.to(dtype=text_embeddings.text_embeds.dtype, device=self.device_torch)
+                    # Handle tuple text_embeds (get first element if tuple for dtype)
+                    text_embeds_dtype = text_embeddings.text_embeds[0].dtype if isinstance(text_embeddings.text_embeds, (list, tuple)) else text_embeddings.text_embeds.dtype
+                    resolution = resolution.to(dtype=text_embeds_dtype, device=self.device_torch)
+                    aspect_ratio = aspect_ratio.to(dtype=text_embeds_dtype, device=self.device_torch)
 
                     if do_classifier_free_guidance:
                         resolution = torch.cat([resolution, resolution], dim=0)
@@ -2172,7 +2176,9 @@ class StableDiffusion:
                         img_ids[..., 2] = img_ids[..., 2] + torch.arange(w // 2)[None, :]
                         img_ids = repeat(img_ids, "h w c -> b (h w) c", b=bs).to(self.device_torch)
 
-                        txt_ids = torch.zeros(bs, text_embeddings.text_embeds.shape[1], 3).to(self.device_torch)
+                        # Handle tuple text_embeds (get first element if tuple)
+                        text_embeds_for_shape = text_embeddings.text_embeds[0] if isinstance(text_embeddings.text_embeds, (list, tuple)) else text_embeddings.text_embeds
+                        txt_ids = torch.zeros(bs, text_embeds_for_shape.shape[1], 3).to(self.device_torch)
 
                         # # handle guidance
                         if self.unet_unwrapped.config.guidance_embeds:
