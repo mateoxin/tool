@@ -298,10 +298,14 @@ class ToolkitModuleMixin:
             if hasattr(self, 'scalar'):
                 self.scalar = self.scalar.to(target_device)
         
-        # always cast to float32
-        lora_input = x.to(self.lora_down.weight.dtype)
+        # always cast to same device AND dtype as LoRA weights
+        lora_input = x.to(device=self.lora_down.weight.device, dtype=self.lora_down.weight.dtype)
         lora_output = self._call_forward(lora_input)
         multiplier = self.network_ref().torch_multiplier
+        
+        # 🔧 FIX: Ensure multiplier is on same device as lora_output (for split_model_over_gpus)
+        if multiplier.device != lora_output.device:
+            multiplier = multiplier.to(lora_output.device)
 
         lora_output_batch_size = lora_output.size(0)
         multiplier_batch_size = multiplier.size(0)
