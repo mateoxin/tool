@@ -1,7 +1,7 @@
 
 # forward that bypasses the guidance embedding so it can be avoided during training.
 from functools import partial
-from typing import Optional
+from typing import Optional, Tuple
 import torch
 from diffusers import FluxTransformer2DModel
 from diffusers.models.embeddings import CombinedTimestepTextProjEmbeddings, CombinedTimestepGuidanceTextProjEmbeddings
@@ -107,8 +107,16 @@ def split_gpu_single_block_forward(
 ):
     if hidden_states.device != self._split_device:
         hidden_states = hidden_states.to(device=self._split_device)
-    if encoder_hidden_states is not None and encoder_hidden_states.device != self._split_device:
-        encoder_hidden_states = encoder_hidden_states.to(device=self._split_device)
+    if encoder_hidden_states is not None:
+        if isinstance(encoder_hidden_states, tuple):
+            encoder_hidden_states = tuple(
+                tensor.to(device=self._split_device)
+                if hasattr(tensor, "to")
+                else tensor
+                for tensor in encoder_hidden_states
+            )
+        elif encoder_hidden_states.device != self._split_device:
+            encoder_hidden_states = encoder_hidden_states.to(device=self._split_device)
     if temb.device != self._split_device:
         temb = temb.to(device=self._split_device)
     if image_rotary_emb is not None and image_rotary_emb[0].device != self._split_device:
