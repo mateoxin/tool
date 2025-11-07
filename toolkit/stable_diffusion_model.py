@@ -1864,6 +1864,22 @@ class StableDiffusion:
         noisy_latents = torch.cat(noisy_latents_chunks, dim=0)
         return noisy_latents
 
+    def _safe_move_prompt_embeds(self, embeds, device, dtype):
+        """
+        Safely move prompt embeddings to device/dtype, handling both tensor and tuple cases.
+        This is needed because encoder_hidden_states can be a tuple in some FLUX configurations.
+        """
+        if embeds is None:
+            return None
+        
+        if isinstance(embeds, (list, tuple)):
+            return tuple(
+                t.to(device, dtype) if hasattr(t, 'to') else t
+                for t in embeds
+            )
+        else:
+            return embeds.to(device, dtype)
+    
     def predict_noise(
             self,
             latents: torch.Tensor,
@@ -2178,14 +2194,18 @@ class StableDiffusion:
                     if img_ids.ndim == 3:
                         img_ids = img_ids[0]
                     # with torch.amp.autocast(device_type='cuda', dtype=cast_dtype):
+                    # Safely move embeddings to device (handles both tensor and tuple cases)
+                    safe_text_embeds = self._safe_move_prompt_embeds(text_embeddings.text_embeds, self.device_torch, cast_dtype)
+                    safe_pooled_embeds = self._safe_move_prompt_embeds(text_embeddings.pooled_embeds, self.device_torch, cast_dtype)
+                    
                     noise_pred = self.unet(
                         hidden_states=latent_model_input_packed.to(self.device_torch, cast_dtype),  # [1, 4096, 64]
                         # YiYi notes: divide it by 1000 for now because we scale it by 1000 in the transforme rmodel (we should not keep it but I want to keep the inputs same for the model for testing)
                         # todo make sure this doesnt change
                         timestep=timestep / 1000,  # timestep is 1000 scale
-                        encoder_hidden_states=text_embeddings.text_embeds.to(self.device_torch, cast_dtype),
+                        encoder_hidden_states=safe_text_embeds,
                         # [1, 512, 4096]
-                        pooled_projections=text_embeddings.pooled_embeds.to(self.device_torch, cast_dtype),  # [1, 768]
+                        pooled_projections=safe_pooled_embeds,  # [1, 768]
                         txt_ids=txt_ids,  # [1, 512, 3]
                         img_ids=img_ids,  # [1, 4096, 3]
                         guidance=guidance,
@@ -2213,22 +2233,25 @@ class StableDiffusion:
                     # reverse the timestep since Lumina uses t=0 as the noise and t=1 as the image
                     t = 1 - timestep / self.noise_scheduler.config.num_train_timesteps
                     with self.accelerator.autocast():
+                        safe_text_embeds = self._safe_move_prompt_embeds(text_embeddings.text_embeds, self.device_torch, self.torch_dtype)
                         noise_pred = self.unet(
                             hidden_states=latent_model_input.to(self.device_torch, self.torch_dtype),
                             timestep=t,
                             encoder_attention_mask=text_embeddings.attention_mask.to(self.device_torch, dtype=torch.int64),
-                            encoder_hidden_states=text_embeddings.text_embeds.to(self.device_torch, self.torch_dtype),
+                            encoder_hidden_states=safe_text_embeds,
                             **kwargs,
                         ).sample
                     
                     # lumina2 does this before stepping. Should we do it here?
                     noise_pred = -noise_pred
                 elif self.is_v3:
+                    safe_text_embeds = self._safe_move_prompt_embeds(text_embeddings.text_embeds, self.device_torch, self.torch_dtype)
+                    safe_pooled_embeds = self._safe_move_prompt_embeds(text_embeddings.pooled_embeds, self.device_torch, self.torch_dtype)
                     noise_pred = self.unet(
                         hidden_states=latent_model_input.to(self.device_torch, self.torch_dtype),
                         timestep=timestep,
-                        encoder_hidden_states=text_embeddings.text_embeds.to(self.device_torch, self.torch_dtype),
-                        pooled_projections=text_embeddings.pooled_embeds.to(self.device_torch, self.torch_dtype),
+                        encoder_hidden_states=safe_text_embeds,
+                        pooled_projections=safe_pooled_embeds,
                         **kwargs,
                     ).sample
                     if isinstance(noise_pred, QTensor):
@@ -2239,17 +2262,19 @@ class StableDiffusion:
                     t = torch.tensor([timestep / 1000]).expand(latent_model_input.shape[0])
                     t = t.to(self.device_torch, self.torch_dtype)
 
+                    safe_text_embeds = self._safe_move_prompt_embeds(text_embeddings.text_embeds, self.device_torch, self.torch_dtype)
                     noise_pred = self.unet(
                         latent_model_input,
-                        encoder_hidden_states=text_embeddings.text_embeds.to(self.device_torch, self.torch_dtype),
+                        encoder_hidden_states=safe_text_embeds,
                         timestep=t,
                         return_dict=False,
                     )[0]
                 else:
+                    safe_text_embeds = self._safe_move_prompt_embeds(text_embeddings.text_embeds, self.device_torch, self.torch_dtype)
                     noise_pred = self.unet(
                         latent_model_input.to(self.device_torch, self.torch_dtype),
                         timestep=timestep,
-                        encoder_hidden_states=text_embeddings.text_embeds.to(self.device_torch, self.torch_dtype),
+                        encoder_hidden_states=safe_text_embeds,
                         **kwargs,
                     ).sample
 
