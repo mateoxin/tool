@@ -167,6 +167,9 @@ class StableDiffusion:
         self.device_torch = torch.device(device)
         self.dtype = dtype
         self.torch_dtype = get_torch_dtype(dtype)
+        
+        # Log library versions for diagnostics
+        self._log_library_versions()
 
         self.vae_device_torch = torch.device(device)
         self.vae_torch_dtype = get_torch_dtype(model_config.vae_dtype)
@@ -240,6 +243,37 @@ class StableDiffusion:
         # set true for models that encode control image into text embeddings
         self.encode_control_in_text_embeddings = False
         
+    def _log_library_versions(self):
+        """Log versions of critical libraries for debugging"""
+        try:
+            import transformers
+            import accelerate
+            
+            print_acc("=" * 60)
+            print_acc("📚 Library Versions (Diagnostic Info)")
+            print_acc("=" * 60)
+            print_acc(f"🔹 PyTorch: {torch.__version__}")
+            print_acc(f"🔹 Diffusers: {diffusers.__version__}")
+            print_acc(f"🔹 Transformers: {transformers.__version__}")
+            print_acc(f"🔹 Accelerate: {accelerate.__version__}")
+            
+            # Check if quantization is available
+            try:
+                from optimum.quanto import __version__ as quanto_version
+                print_acc(f"🔹 Optimum Quanto: {quanto_version}")
+            except:
+                print_acc(f"🔹 Optimum Quanto: Not installed")
+            
+            print_acc(f"🔹 CUDA Available: {torch.cuda.is_available()}")
+            if torch.cuda.is_available():
+                print_acc(f"🔹 CUDA Version: {torch.version.cuda}")
+                print_acc(f"🔹 GPU Count: {torch.cuda.device_count()}")
+                for i in range(torch.cuda.device_count()):
+                    print_acc(f"   GPU {i}: {torch.cuda.get_device_name(i)}")
+            print_acc("=" * 60)
+        except Exception as e:
+            print_acc(f"⚠️ Could not log library versions: {e}")
+    
     # properties for old arch for backwards compatibility
     @property
     def is_xl(self):
@@ -1892,19 +1926,32 @@ class StableDiffusion:
         if embeds is None:
             return None
 
+        # Log input type for diagnostics
+        input_type = type(embeds).__name__
+        print_acc(f"[DIAG] _safe_move_prompt_embeds input type: {input_type}")
+        
         if isinstance(embeds, list):
+            print_acc(f"[DIAG] Processing list with {len(embeds)} elements")
             return [
                 t.to(device, dtype) if hasattr(t, "to") else t
                 for t in embeds
             ]
 
         if isinstance(embeds, tuple):
+            print_acc(f"[DIAG] Processing tuple with {len(embeds)} elements")
+            element_types = [type(e).__name__ for e in embeds]
+            print_acc(f"[DIAG] Tuple element types: {element_types}")
+            
             moved = tuple(
                 t.to(device, dtype) if hasattr(t, "to") else t
                 for t in embeds
             )
-            return self._wrap_encoder_hidden_states_for_unet(moved)
+            wrapped = self._wrap_encoder_hidden_states_for_unet(moved)
+            print_acc(f"[DIAG] After wrapping, type: {type(wrapped).__name__}")
+            print_acc(f"[DIAG] Has 'to' method: {hasattr(wrapped, 'to')}")
+            return wrapped
         else:
+            print_acc(f"[DIAG] Processing single tensor")
             return embeds.to(device, dtype)
 
     def _wrap_encoder_hidden_states_for_unet(self, embeds):
@@ -1913,8 +1960,19 @@ class StableDiffusion:
         a `.to(...)` interface even when upstream produced a tuple. Downstream
         split-model hooks still receive tuple semantics via `_TupleWithTo`.
         """
+        print_acc(f"[DIAG] _wrap_encoder_hidden_states_for_unet input type: {type(embeds).__name__}")
+        
         if isinstance(embeds, tuple) and not isinstance(embeds, _TupleWithTo):
-            return _TupleWithTo(tuple(embeds))
+            wrapped = _TupleWithTo(tuple(embeds))
+            print_acc(f"[DIAG] Created _TupleWithTo wrapper")
+            print_acc(f"[DIAG] Wrapper type: {type(wrapped).__name__}")
+            print_acc(f"[DIAG] Wrapper has 'to': {hasattr(wrapped, 'to')}")
+            # Test the 'to' method
+            if hasattr(wrapped, 'to'):
+                print_acc(f"[DIAG] Wrapper 'to' method: {wrapped.to}")
+            return wrapped
+        
+        print_acc(f"[DIAG] Returning embeds as-is (already _TupleWithTo or not tuple)")
         return embeds
     
     def predict_noise(
@@ -2249,6 +2307,11 @@ class StableDiffusion:
 
                     encoder_hidden_states_for_unet = self._wrap_encoder_hidden_states_for_unet(safe_text_embeds)
                     print_acc(f"[FLUX][split_model] encoder_hidden_states type passed to UNet: {type(encoder_hidden_states_for_unet).__name__}")
+                    print_acc(f"[FLUX][split_model] encoder_hidden_states has 'to' method: {hasattr(encoder_hidden_states_for_unet, 'to')}")
+                    
+                    # Additional diagnostic: check if it's really _TupleWithTo
+                    print_acc(f"[FLUX][split_model] Is _TupleWithTo: {isinstance(encoder_hidden_states_for_unet, _TupleWithTo)}")
+                    print_acc(f"[FLUX][split_model] MRO: {[c.__name__ for c in type(encoder_hidden_states_for_unet).__mro__]}")
 
                     noise_pred = self.unet(
                         hidden_states=latent_model_input_packed.to(self.device_torch, cast_dtype),  # [1, 4096, 64]
