@@ -77,6 +77,23 @@ if TYPE_CHECKING:
 # tell it to shut up
 diffusers.logging.set_verbosity(diffusers.logging.ERROR)
 
+
+class _TupleWithTo(tuple):
+    """
+    Lightweight wrapper that behaves like a tuple but exposes a `.to(...)`
+    method mirroring tensor semantics. Used to keep encoder_hidden_states
+    tuple-compatible for FLUX split-model pipelines while satisfying top-level
+    UNet expectations.
+    """
+
+    def to(self, *args, **kwargs):
+        return _TupleWithTo(
+            tuple(
+                item.to(*args, **kwargs) if hasattr(item, "to") else item
+                for item in self
+            )
+        )
+
 SD_PREFIX_VAE = "vae"
 SD_PREFIX_UNET = "unet"
 SD_PREFIX_REFINER_UNET = "refiner_unet"
@@ -1879,6 +1896,16 @@ class StableDiffusion:
             )
         else:
             return embeds.to(device, dtype)
+
+    def _wrap_encoder_hidden_states_for_unet(self, embeds):
+        """
+        Ensure encoder hidden states passed to the top-level UNet forward expose
+        a `.to(...)` interface even when upstream produced a tuple. Downstream
+        split-model hooks still receive tuple semantics via `_TupleWithTo`.
+        """
+        if isinstance(embeds, tuple) and not isinstance(embeds, _TupleWithTo):
+            return _TupleWithTo(tuple(embeds))
+        return embeds
     
     def predict_noise(
             self,
@@ -2203,13 +2230,22 @@ class StableDiffusion:
                     # Safely move embeddings to device (handles both tensor and tuple cases)
                     safe_text_embeds = self._safe_move_prompt_embeds(text_embeddings.text_embeds, self.device_torch, cast_dtype)
                     safe_pooled_embeds = self._safe_move_prompt_embeds(text_embeddings.pooled_embeds, self.device_torch, cast_dtype)
-                    
+
+                    if isinstance(safe_text_embeds, tuple):
+                        tuple_types = ", ".join(type(item).__name__ for item in safe_text_embeds)
+                        print_acc(f"[FLUX][split_model] encoder_hidden_states tuple before wrap: ({tuple_types})")
+                    else:
+                        print_acc(f"[FLUX][split_model] encoder_hidden_states type before wrap: {type(safe_text_embeds).__name__}")
+
+                    encoder_hidden_states_for_unet = self._wrap_encoder_hidden_states_for_unet(safe_text_embeds)
+                    print_acc(f"[FLUX][split_model] encoder_hidden_states type passed to UNet: {type(encoder_hidden_states_for_unet).__name__}")
+
                     noise_pred = self.unet(
                         hidden_states=latent_model_input_packed.to(self.device_torch, cast_dtype),  # [1, 4096, 64]
                         # YiYi notes: divide it by 1000 for now because we scale it by 1000 in the transforme rmodel (we should not keep it but I want to keep the inputs same for the model for testing)
                         # todo make sure this doesnt change
                         timestep=timestep / 1000,  # timestep is 1000 scale
-                        encoder_hidden_states=safe_text_embeds,
+                        encoder_hidden_states=encoder_hidden_states_for_unet,
                         # [1, 512, 4096]
                         pooled_projections=safe_pooled_embeds,  # [1, 768]
                         txt_ids=txt_ids,  # [1, 512, 3]
