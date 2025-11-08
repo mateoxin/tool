@@ -174,8 +174,18 @@ def split_gpu_single_block_forward(
         **kwargs,
     )
     print(f"[SINGLE_BLOCK] _pre_gpu_split_forward completed, checking output device", file=sys.stderr, flush=True)
+    print(f"[SINGLE_BLOCK] hidden_state_out type: {type(hidden_state_out)}, is tuple: {isinstance(hidden_state_out, tuple)}", file=sys.stderr, flush=True)
+    
     if hasattr(self, "_split_output_device"):
         print(f"[SINGLE_BLOCK] Moving output to device: {self._split_output_device}", file=sys.stderr, flush=True)
+        
+        # Handle tuple outputs (some FLUX blocks return tuples)
+        if isinstance(hidden_state_out, tuple):
+            from toolkit.stable_diffusion_model import _TupleWithTo
+            print(f"[SINGLE_BLOCK] Output is tuple, wrapping with _TupleWithTo", file=sys.stderr, flush=True)
+            # Convert to _TupleWithTo to support .to() method
+            hidden_state_out = _TupleWithTo(hidden_state_out)
+        
         return hidden_state_out.to(self._split_output_device)
     return hidden_state_out
 
