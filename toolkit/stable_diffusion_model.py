@@ -2336,18 +2336,52 @@ class StableDiffusion:
                     print_acc(f"[FLUX][split_model] Is _TupleWithTo: {isinstance(encoder_hidden_states_for_unet, _TupleWithTo)}")
                     print_acc(f"[FLUX][split_model] MRO: {[c.__name__ for c in type(encoder_hidden_states_for_unet).__mro__]}")
                     
-                    # CRITICAL: Log to stderr to bypass any buffering
+                    # CRITICAL: Triple logging strategy - one MUST work!
                     import sys
+                    from datetime import datetime
+                    
+                    # Version 1: Direct print to stderr with flush (bypasses accelerator)
                     print(f"\n{'='*80}", file=sys.stderr, flush=True)
-                    print(f"[CRITICAL] About to call unet() - LINE 2339", file=sys.stderr, flush=True)
-                    print(f"[CRITICAL] encoder_hidden_states_for_unet type: {type(encoder_hidden_states_for_unet)}", file=sys.stderr, flush=True)
-                    print(f"[CRITICAL] Is tuple: {isinstance(encoder_hidden_states_for_unet, tuple)}", file=sys.stderr, flush=True)
-                    print(f"[CRITICAL] Is _TupleWithTo: {isinstance(encoder_hidden_states_for_unet, _TupleWithTo)}", file=sys.stderr, flush=True)
-                    print(f"[CRITICAL] Has 'to' attr: {hasattr(encoder_hidden_states_for_unet, 'to')}", file=sys.stderr, flush=True)
+                    print(f"[CRITICAL-STDERR] About to call unet() - LINE 2339", file=sys.stderr, flush=True)
+                    print(f"[CRITICAL-STDERR] encoder_hidden_states_for_unet type: {type(encoder_hidden_states_for_unet)}", file=sys.stderr, flush=True)
+                    print(f"[CRITICAL-STDERR] Is tuple: {isinstance(encoder_hidden_states_for_unet, tuple)}", file=sys.stderr, flush=True)
+                    print(f"[CRITICAL-STDERR] Is _TupleWithTo: {isinstance(encoder_hidden_states_for_unet, _TupleWithTo)}", file=sys.stderr, flush=True)
+                    print(f"[CRITICAL-STDERR] Has 'to' attr: {hasattr(encoder_hidden_states_for_unet, 'to')}", file=sys.stderr, flush=True)
                     if isinstance(encoder_hidden_states_for_unet, tuple):
-                        print(f"[CRITICAL] Tuple length: {len(encoder_hidden_states_for_unet)}", file=sys.stderr, flush=True)
-                        print(f"[CRITICAL] Tuple element types: {[type(x).__name__ for x in encoder_hidden_states_for_unet]}", file=sys.stderr, flush=True)
+                        print(f"[CRITICAL-STDERR] Tuple length: {len(encoder_hidden_states_for_unet)}", file=sys.stderr, flush=True)
+                        print(f"[CRITICAL-STDERR] Tuple element types: {[type(x).__name__ for x in encoder_hidden_states_for_unet]}", file=sys.stderr, flush=True)
                     print(f"{'='*80}\n", file=sys.stderr, flush=True)
+                    
+                    # Version 2: Direct print to stdout with flush (RunPod style)
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    print(f"\n{'='*80}", flush=True)
+                    print(f"[{timestamp}] CRITICAL-STDOUT: About to call unet() - LINE 2339", flush=True)
+                    print(f"[{timestamp}] CRITICAL-STDOUT: encoder_hidden_states_for_unet type: {type(encoder_hidden_states_for_unet)}", flush=True)
+                    print(f"[{timestamp}] CRITICAL-STDOUT: Is tuple: {isinstance(encoder_hidden_states_for_unet, tuple)}", flush=True)
+                    print(f"[{timestamp}] CRITICAL-STDOUT: Is _TupleWithTo: {isinstance(encoder_hidden_states_for_unet, _TupleWithTo)}", flush=True)
+                    print(f"[{timestamp}] CRITICAL-STDOUT: Has 'to' attr: {hasattr(encoder_hidden_states_for_unet, 'to')}", flush=True)
+                    if isinstance(encoder_hidden_states_for_unet, tuple):
+                        print(f"[{timestamp}] CRITICAL-STDOUT: Tuple length: {len(encoder_hidden_states_for_unet)}", flush=True)
+                        print(f"[{timestamp}] CRITICAL-STDOUT: Tuple element types: {[type(x).__name__ for x in encoder_hidden_states_for_unet]}", flush=True)
+                    print(f"{'='*80}\n", flush=True)
+                    sys.stdout.flush()
+                    
+                    # Version 3: Write directly to a debug file (always works)
+                    try:
+                        with open('/workspace/logs/CRITICAL_DEBUG.log', 'a') as f:
+                            f.write(f"\n{'='*80}\n")
+                            f.write(f"[{timestamp}] CRITICAL-FILE: About to call unet() - LINE 2339\n")
+                            f.write(f"[{timestamp}] CRITICAL-FILE: encoder_hidden_states_for_unet type: {type(encoder_hidden_states_for_unet)}\n")
+                            f.write(f"[{timestamp}] CRITICAL-FILE: Is tuple: {isinstance(encoder_hidden_states_for_unet, tuple)}\n")
+                            f.write(f"[{timestamp}] CRITICAL-FILE: Is _TupleWithTo: {isinstance(encoder_hidden_states_for_unet, _TupleWithTo)}\n")
+                            f.write(f"[{timestamp}] CRITICAL-FILE: Has 'to' attr: {hasattr(encoder_hidden_states_for_unet, 'to')}\n")
+                            if isinstance(encoder_hidden_states_for_unet, tuple):
+                                f.write(f"[{timestamp}] CRITICAL-FILE: Tuple length: {len(encoder_hidden_states_for_unet)}\n")
+                                f.write(f"[{timestamp}] CRITICAL-FILE: Tuple element types: {[type(x).__name__ for x in encoder_hidden_states_for_unet]}\n")
+                            f.write(f"{'='*80}\n")
+                            f.flush()
+                    except Exception as e:
+                        print(f"[ERROR] Could not write to debug file: {e}", file=sys.stderr, flush=True)
 
                     noise_pred = self.unet(
                         hidden_states=latent_model_input_packed.to(self.device_torch, cast_dtype),  # [1, 4096, 64]
