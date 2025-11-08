@@ -86,6 +86,9 @@ class _TupleWithTo(tuple):
     UNet expectations.
     """
 
+    def __new__(cls, iterable):
+        return super().__new__(cls, iterable)
+
     def to(self, *args, **kwargs):
         return _TupleWithTo(
             tuple(
@@ -1888,12 +1891,19 @@ class StableDiffusion:
         """
         if embeds is None:
             return None
-        
-        if isinstance(embeds, (list, tuple)):
-            return tuple(
-                t.to(device, dtype) if hasattr(t, 'to') else t
+
+        if isinstance(embeds, list):
+            return [
+                t.to(device, dtype) if hasattr(t, "to") else t
+                for t in embeds
+            ]
+
+        if isinstance(embeds, tuple):
+            moved = tuple(
+                t.to(device, dtype) if hasattr(t, "to") else t
                 for t in embeds
             )
+            return self._wrap_encoder_hidden_states_for_unet(moved)
         else:
             return embeds.to(device, dtype)
 
