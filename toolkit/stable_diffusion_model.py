@@ -1994,6 +1994,12 @@ class StableDiffusion:
             batch: Union[None, 'DataLoaderBatchDTO'] = None,
             **kwargs,
     ):
+        # CRITICAL DEBUG: Log entry into predict_noise
+        print_acc("[DEBUG] predict_noise called")
+        print_acc(f"[DEBUG] text_embeddings type: {type(text_embeddings)}")
+        if hasattr(text_embeddings, 'text_embeds'):
+            print_acc(f"[DEBUG] text_embeddings.text_embeds type: {type(text_embeddings.text_embeds)}")
+        
         conditional_pred = None
         # get the embeddings
         if text_embeddings is None and conditional_embeddings is None:
@@ -2018,8 +2024,25 @@ class StableDiffusion:
             do_classifier_free_guidance = False
         elif latents.shape[0] * 2 != text_embeds_for_check.shape[0]:
             raise ValueError("Batch size of latents must be the same or half the batch size of text embeddings")
+        # DEBUG: Log before moving to device
+        print_acc(f"[DEBUG] Before .to() calls - latents type: {type(latents)}")
+        print_acc(f"[DEBUG] Before .to() calls - text_embeddings type: {type(text_embeddings)}")
+        print_acc(f"[DEBUG] Before .to() calls - timestep type: {type(timestep)}")
+        
         latents = latents.to(self.device_torch)
-        text_embeddings = text_embeddings.to(self.device_torch)
+        
+        print_acc("[DEBUG] After latents.to() - moving text_embeddings")
+        try:
+            text_embeddings = text_embeddings.to(self.device_torch)
+            print_acc("[DEBUG] text_embeddings.to() succeeded")
+        except AttributeError as e:
+            print_acc(f"[ERROR] text_embeddings.to() failed: {e}")
+            print_acc(f"[ERROR] text_embeddings actual type: {type(text_embeddings).__name__}")
+            print_acc(f"[ERROR] text_embeddings is tuple: {isinstance(text_embeddings, tuple)}")
+            if isinstance(text_embeddings, tuple):
+                print_acc(f"[ERROR] Tuple contents: {[type(x).__name__ for x in text_embeddings]}")
+            raise
+            
         timestep = timestep.to(self.device_torch)
 
         # if timestep is zero dim, unsqueeze it
