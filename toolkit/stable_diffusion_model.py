@@ -2364,6 +2364,15 @@ class StableDiffusion:
                                 print(f"[CRITICAL] ❌ FOUND IT! {param_name} is tuple WITHOUT .to() method!", file=sys.stderr, flush=True)
                                 print(f"[CRITICAL] Tuple contents: {[type(x).__name__ for x in param_value]}", file=sys.stderr, flush=True)
                     print(f"{'='*80}\n", file=sys.stderr, flush=True)
+                    
+                    # Check kwargs for tuple parameters
+                    print(f"[CRITICAL] Checking **kwargs for tuples:", file=sys.stderr, flush=True)
+                    for key, value in kwargs.items():
+                        is_tuple = isinstance(value, tuple)
+                        has_to = hasattr(value, 'to') if is_tuple else 'N/A'
+                        print(f"[CRITICAL] kwargs['{key}'] type: {type(value)} | Is tuple: {is_tuple} | Has .to(): {has_to}", file=sys.stderr, flush=True)
+                        if is_tuple and not has_to:
+                            print(f"[CRITICAL] ❌❌❌ FOUND CULPRIT! kwargs['{key}'] is tuple WITHOUT .to()!", file=sys.stderr, flush=True)
                     sys.stderr.flush()
 
                     try:
@@ -2389,6 +2398,29 @@ class StableDiffusion:
                         traceback.print_exc(file=sys.stderr)
                         print(f"{'!'*80}\n", file=sys.stderr, flush=True)
                         sys.stderr.flush()
+                        
+                        # Also save full traceback to file
+                        try:
+                            with open('/workspace/logs/FULL_TRACEBACK.log', 'w') as f:
+                                f.write(f"{'='*80}\n")
+                                f.write(f"AttributeError in unet call: {e}\n")
+                                f.write(f"{'='*80}\n")
+                                traceback.print_exc(file=f)
+                                f.write(f"\n{'='*80}\n")
+                                f.write("Parameters passed to unet:\n")
+                                f.write(f"  encoder_hidden_states type: {type(encoder_hidden_states_for_unet)}\n")
+                                f.write(f"  safe_pooled_embeds type: {type(safe_pooled_embeds)}\n")
+                                f.write(f"  txt_ids type: {type(txt_ids)}\n")
+                                f.write(f"  img_ids type: {type(img_ids)}\n")
+                                f.write(f"  guidance type: {type(guidance)}\n")
+                                f.write(f"\nkwargs:\n")
+                                for k, v in kwargs.items():
+                                    f.write(f"  {k}: type={type(v)}, is_tuple={isinstance(v, tuple)}\n")
+                                f.flush()
+                            print(f"[ERROR] Full traceback saved to /workspace/logs/FULL_TRACEBACK.log", file=sys.stderr, flush=True)
+                        except Exception as write_error:
+                            print(f"[ERROR] Could not write traceback file: {write_error}", file=sys.stderr, flush=True)
+                        
                         raise
 
                     if isinstance(noise_pred, QTensor):
