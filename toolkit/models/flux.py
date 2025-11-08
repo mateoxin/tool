@@ -90,7 +90,9 @@ def split_gpu_double_block_forward(
     # Handle tuple encoder_hidden_states (e.g., from FLUX with certain configurations)
     if encoder_hidden_states is not None:
         if isinstance(encoder_hidden_states, tuple):
-            encoder_hidden_states = tuple(
+            from toolkit.stable_diffusion_model import _TupleWithTo
+            # Use _TupleWithTo instead of regular tuple to support .to() method
+            encoder_hidden_states = _TupleWithTo(
                 tensor.to(device=self._split_device)
                 if hasattr(tensor, "to")
                 else tensor
@@ -102,8 +104,10 @@ def split_gpu_double_block_forward(
     if temb.device != self._split_device:
         temb = temb.to(self._split_device)
     if image_rotary_emb is not None and image_rotary_emb[0].device != self._split_device:
-        # is a tuple of tensors
-        image_rotary_emb = tuple([t.to(self._split_device) for t in image_rotary_emb])
+        # is a tuple of tensors - import _TupleWithTo to preserve .to() method
+        from toolkit.stable_diffusion_model import _TupleWithTo
+        # Use _TupleWithTo instead of regular tuple to support .to() method
+        image_rotary_emb = _TupleWithTo([t.to(self._split_device) for t in image_rotary_emb])
     return self._pre_gpu_split_forward(hidden_states, encoder_hidden_states, temb, image_rotary_emb, joint_attention_kwargs)
 
 
@@ -120,7 +124,9 @@ def split_gpu_single_block_forward(
         hidden_states = hidden_states.to(device=self._split_device)
     if encoder_hidden_states is not None:
         if isinstance(encoder_hidden_states, tuple):
-            encoder_hidden_states = tuple(
+            from toolkit.stable_diffusion_model import _TupleWithTo
+            # Use _TupleWithTo instead of regular tuple to support .to() method
+            encoder_hidden_states = _TupleWithTo(
                 tensor.to(device=self._split_device)
                 if hasattr(tensor, "to")
                 else tensor
@@ -131,8 +137,10 @@ def split_gpu_single_block_forward(
     if temb.device != self._split_device:
         temb = temb.to(device=self._split_device)
     if image_rotary_emb is not None and image_rotary_emb[0].device != self._split_device:
-        # is a tuple of tensors
-        image_rotary_emb = tuple([t.to(self._split_device) for t in image_rotary_emb])
+        # is a tuple of tensors - import _TupleWithTo to preserve .to() method
+        from toolkit.stable_diffusion_model import _TupleWithTo
+        # Use _TupleWithTo instead of regular tuple to support .to() method
+        image_rotary_emb = _TupleWithTo([t.to(self._split_device) for t in image_rotary_emb])
 
     hidden_state_out = self._pre_gpu_split_forward(
         hidden_states,
