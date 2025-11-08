@@ -2366,20 +2366,30 @@ class StableDiffusion:
                     print(f"{'='*80}\n", file=sys.stderr, flush=True)
                     sys.stderr.flush()
 
-                    noise_pred = self.unet(
-                        hidden_states=latent_model_input_packed.to(self.device_torch, cast_dtype),  # [1, 4096, 64]
-                        # YiYi notes: divide it by 1000 for now because we scale it by 1000 in the transforme rmodel (we should not keep it but I want to keep the inputs same for the model for testing)
-                        # todo make sure this doesnt change
-                        timestep=timestep / 1000,  # timestep is 1000 scale
-                        encoder_hidden_states=encoder_hidden_states_for_unet,
-                        # [1, 512, 4096]
-                        pooled_projections=safe_pooled_embeds,  # [1, 768]
-                        txt_ids=txt_ids,  # [1, 512, 3]
-                        img_ids=img_ids,  # [1, 4096, 3]
-                        guidance=guidance,
-                        return_dict=False,
-                        **kwargs,
-                    )[0]
+                    try:
+                        noise_pred = self.unet(
+                            hidden_states=latent_model_input_packed.to(self.device_torch, cast_dtype),  # [1, 4096, 64]
+                            # YiYi notes: divide it by 1000 for now because we scale it by 1000 in the transforme rmodel (we should not keep it but I want to keep the inputs same for the model for testing)
+                            # todo make sure this doesnt change
+                            timestep=timestep / 1000,  # timestep is 1000 scale
+                            encoder_hidden_states=encoder_hidden_states_for_unet,
+                            # [1, 512, 4096]
+                            pooled_projections=safe_pooled_embeds,  # [1, 768]
+                            txt_ids=txt_ids,  # [1, 512, 3]
+                            img_ids=img_ids,  # [1, 4096, 3]
+                            guidance=guidance,
+                            return_dict=False,
+                            **kwargs,
+                        )[0]
+                    except AttributeError as e:
+                        import traceback
+                        print(f"\n{'!'*80}", file=sys.stderr, flush=True)
+                        print(f"[ERROR] AttributeError in unet call: {e}", file=sys.stderr, flush=True)
+                        print(f"[ERROR] Full traceback:", file=sys.stderr, flush=True)
+                        traceback.print_exc(file=sys.stderr)
+                        print(f"{'!'*80}\n", file=sys.stderr, flush=True)
+                        sys.stderr.flush()
+                        raise
 
                     if isinstance(noise_pred, QTensor):
                         noise_pred = noise_pred.dequantize()
