@@ -36,10 +36,12 @@ class PromptEmbeds:
         self.attention_mask = attention_mask
 
     def to(self, *args, **kwargs):
-        print(f"[PromptEmbeds.to] Called with args={args}, kwargs={kwargs}")
-        print(f"[PromptEmbeds.to] self.text_embeds type: {type(self.text_embeds)}")
+        # Import here to avoid circular dependency
+        from toolkit.stable_diffusion_model import print_acc
+        print_acc(f"[PromptEmbeds.to] Called with args={args}, kwargs={kwargs}")
+        print_acc(f"[PromptEmbeds.to] self.text_embeds type: {type(self.text_embeds)}")
         if isinstance(self.text_embeds, list) or isinstance(self.text_embeds, tuple):
-            print(f"[PromptEmbeds.to] text_embeds is list/tuple with {len(self.text_embeds)} elements")
+            print_acc(f"[PromptEmbeds.to] text_embeds is list/tuple with {len(self.text_embeds)} elements")
             self.text_embeds = [t.to(*args, **kwargs) for t in self.text_embeds]
         else:
             self.text_embeds = self.text_embeds.to(*args, **kwargs)
@@ -292,11 +294,12 @@ def concat_prompt_embeds(prompt_embeds: list["PromptEmbeds"]):
         attention_mask = torch.cat(padded, dim=0)
 
     # wrap back into PromptEmbeds
-    print(f"[concat_prompt_embeds] Creating PromptEmbeds with text_embeds type: {type(text_embeds)}")
-    print(f"[concat_prompt_embeds] pooled_embeds type: {type(pooled_embeds)}")
+    from toolkit.stable_diffusion_model import print_acc
+    print_acc(f"[concat_prompt_embeds] Creating PromptEmbeds with text_embeds type: {type(text_embeds)}")
+    print_acc(f"[concat_prompt_embeds] pooled_embeds type: {type(pooled_embeds)}")
     pe = PromptEmbeds([text_embeds, pooled_embeds])
     pe.attention_mask = attention_mask
-    print(f"[concat_prompt_embeds] Returning pe type: {type(pe)}")
+    print_acc(f"[concat_prompt_embeds] Returning pe type: {type(pe)}")
     return pe
 
 
