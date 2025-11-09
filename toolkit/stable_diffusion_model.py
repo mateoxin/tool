@@ -2337,44 +2337,6 @@ class StableDiffusion:
                     print_acc(f"[FLUX][split_model] MRO: {[c.__name__ for c in type(encoder_hidden_states_for_unet).__mro__]}")
                     
                     # CRITICAL: Log ALL parameters before unet call
-                    import sys
-                    from datetime import datetime
-                    
-                    # Check all parameters that will be passed to unet
-                    print(f"\n{'='*80}", file=sys.stderr, flush=True)
-                    print(f"[CRITICAL] About to call unet() - CHECKING ALL PARAMETERS", file=sys.stderr, flush=True)
-                    print(f"[CRITICAL] encoder_hidden_states type: {type(encoder_hidden_states_for_unet)} | Is tuple: {isinstance(encoder_hidden_states_for_unet, tuple)}", file=sys.stderr, flush=True)
-                    print(f"[CRITICAL] safe_pooled_embeds type: {type(safe_pooled_embeds)} | Is tuple: {isinstance(safe_pooled_embeds, tuple)}", file=sys.stderr, flush=True)
-                    print(f"[CRITICAL] txt_ids type: {type(txt_ids)} | Is tuple: {isinstance(txt_ids, tuple)}", file=sys.stderr, flush=True)
-                    print(f"[CRITICAL] img_ids type: {type(img_ids)} | Is tuple: {isinstance(img_ids, tuple)}", file=sys.stderr, flush=True)
-                    print(f"[CRITICAL] guidance type: {type(guidance)} | Is tuple: {isinstance(guidance, tuple) if guidance is not None else 'None'}", file=sys.stderr, flush=True)
-                    
-                    # Check if any of them is tuple without .to()
-                    for param_name, param_value in [
-                        ("encoder_hidden_states", encoder_hidden_states_for_unet),
-                        ("safe_pooled_embeds", safe_pooled_embeds),
-                        ("txt_ids", txt_ids),
-                        ("img_ids", img_ids),
-                        ("guidance", guidance),
-                    ]:
-                        if isinstance(param_value, tuple):
-                            has_to = hasattr(param_value, 'to')
-                            print(f"[CRITICAL] ⚠️ {param_name} IS TUPLE! Has .to(): {has_to}", file=sys.stderr, flush=True)
-                            if not has_to:
-                                print(f"[CRITICAL] ❌ FOUND IT! {param_name} is tuple WITHOUT .to() method!", file=sys.stderr, flush=True)
-                                print(f"[CRITICAL] Tuple contents: {[type(x).__name__ for x in param_value]}", file=sys.stderr, flush=True)
-                    print(f"{'='*80}\n", file=sys.stderr, flush=True)
-                    
-                    # Check kwargs for tuple parameters
-                    print(f"[CRITICAL] Checking **kwargs for tuples:", file=sys.stderr, flush=True)
-                    for key, value in kwargs.items():
-                        is_tuple = isinstance(value, tuple)
-                        has_to = hasattr(value, 'to') if is_tuple else 'N/A'
-                        print(f"[CRITICAL] kwargs['{key}'] type: {type(value)} | Is tuple: {is_tuple} | Has .to(): {has_to}", file=sys.stderr, flush=True)
-                        if is_tuple and not has_to:
-                            print(f"[CRITICAL] ❌❌❌ FOUND CULPRIT! kwargs['{key}'] is tuple WITHOUT .to()!", file=sys.stderr, flush=True)
-                    sys.stderr.flush()
-
                     try:
                         noise_pred = self.unet(
                             hidden_states=latent_model_input_packed.to(self.device_torch, cast_dtype),  # [1, 4096, 64]
