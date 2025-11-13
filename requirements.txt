@@ -7,7 +7,6 @@ lycoris-lora==1.8.3
 flatten_json
 pyyaml
 oyaml
-tensorboard
 kornia
 invisible-watermark
 einops
@@ -31,9 +30,7 @@ optimum-quanto==0.2.4
 sentencepiece
 huggingface_hub
 peft
-gradio
 python-slugify
-opencv-python
+opencv-python-headless
 pytorch-wavelets==1.3.0
-matplotlib==3.10.1
 setuptools==69.5.1
